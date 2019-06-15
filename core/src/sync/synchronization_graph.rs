@@ -42,6 +42,8 @@ const BLOCK_HEADER_PARENTAL_TREE_READY: u8 = 2;
 const BLOCK_HEADER_GRAPH_READY: u8 = 3;
 const BLOCK_GRAPH_READY: u8 = 4;
 
+const CONSENSUS_EVENT_LOOP_SLEEP: u32 = 0;
+
 #[derive(Debug)]
 pub struct SyncGraphStatistics {
     pub inserted_block_count: usize,
@@ -494,15 +496,6 @@ impl SynchronizationGraph {
     ) -> Self
     {
         let data_man = consensus.data_man.clone();
-        let (consensus_sender, consensus_receiver) = mpsc::channel();
-        let (
-            block_verifier_to_consensus_sender,
-            block_verifier_to_consensus_receiver,
-        ) = mpsc::channel::<VerificationMsg>();
-        let (
-            consensus_to_block_verifier_sender,
-            consensus_to_block_verifier_receiver,
-        ) = mpsc::channel::<VerificationMsg>();
         let inner = Arc::new(RwLock::new(
             SynchronizationGraphInner::with_genesis_block(
                 Arc::new(data_man.genesis_block().block_header.clone()),
@@ -510,6 +503,7 @@ impl SynchronizationGraph {
                 data_man.clone(),
             ),
         ));
+        let (consensus_sender, consensus_receiver) = mpsc::channel();
         let mut sync_graph = SynchronizationGraph {
             inner: inner.clone(),
             data_man: data_man.clone(),
@@ -522,33 +516,73 @@ impl SynchronizationGraph {
             consensus_sender: Mutex::new(consensus_sender),
         };
 
-        thread::Builder::new()
-            .name("Block Verifier".into())
-            .spawn(move || loop {
-                match consensus_to_block_verifier_receiver.recv() {
-                    _ => {}
-                }
-            })
-            .expect("Cannot fail");
-
-        // It receives `BLOCK_GRAPH_READY` blocks in order and handles them in
-        // `ConsensusGraph`
+        // The Consensus Worker event loop
         thread::Builder::new()
             .name("Consensus Worker".into())
-            .spawn(move || loop {
-                match consensus_receiver.recv() {
-                    Ok(hash) => {
-                        let translated_blockset =
-                            inner.read().translate_blockset_in_own_epoch(
-                                &hash,
-                                consensus.clone(),
-                            );
-                        consensus.on_new_block(&hash, translated_blockset)
+            .spawn(move || {
+                let mut block_buffer = VecDeque::new();
+                let mut blocked_by_index = 0;
+                loop {
+                    let mut have_job = false;
+                    if blocked_by_index == 0 {
+                        if !block_buffer.is_empty() {
+                            for block_hash in block_buffer {
+                                let translated_blockset =
+                                    inner.read().translate_blockset_in_own_epoch(
+                                        &block_hash,
+                                        consensus.clone(),
+                                    );
+                                let blocked_idx = consensus.on_new_block(&block_hash, translated_blockset, 0);
+                                if blocked_idx != 0 {
+                                    blocked_by_index = blocked_idx;
+                                    break;
+                                }
+                            }
+                            have_job = true;
+                        }
                     }
-                    Err(_) => break,
+                    match consensus_receiver.try_recv() {
+                        Ok(hash) => {
+                            if blocked_by_index == 0 {
+                                let translated_blockset =
+                                    inner.read().translate_blockset_in_own_epoch(
+                                        &hash,
+                                        consensus.clone(),
+                                    );
+                                let blocked_idx = consensus.on_new_block(&hash, translated_blockset, 0);
+                                if blocked_idx != 0 {
+                                    blocked_by_index = blocked_idx;
+                                }
+                            } else {
+                                block_buffer.push_back(hash);
+                            }
+                            have_job = true;
+                        },
+                        Err(_) => break,
+                    };
+                    match consensus.block_verifier_to_consensus_receiver.lock().try_recv() {
+                        Ok(VerificationMsg::VerificationResults {me, valid, stable, adaptive}) => {
+                            consensus.resolve_validity(me, valid, stable, adaptive);
+                            let hash= consensus.inner.read().arena[me].hash;
+                            let translated_blockset =
+                                inner.read().translate_blockset_in_own_epoch(
+                                    &hash,
+                                    consensus.clone(),
+                                );
+                            if me == blocked_by_index {
+                                blocked_by_index = consensus.on_new_block(&hash, translated_blockset, blocked_by_index);
+                            }
+                            have_job = true;
+                        },
+                        Ok(msg) => panic!("Unexpected message type from BlockVerifier"),
+                        Err(_) => break,
+                    }
+                    if !have_job {
+                        thread::sleep_ms(CONSENSUS_EVENT_LOOP_SLEEP);
+                    }
                 }
             })
-            .expect("Cannot fail");
+            .expect("Consensus Worker failed!");
 
         if fast_recover {
             sync_graph.fast_recover_graph_from_db();

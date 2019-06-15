@@ -13,7 +13,7 @@ use crate::{
     block_data_manager::BlockDataManager,
     cache_manager::{CacheId, CacheManager},
     consensus::{
-        block_verifier::BlockVerifier,
+        block_verifier::{BlockVerifier, VerificationMsg},
         confirmation::ConfirmationTrait,
         consensus_executor::{EpochExecutionTask, RewardExecutionInfo},
     },
@@ -51,6 +51,7 @@ use std::{
     sync::Arc,
     thread::sleep,
     time::Duration,
+    sync::mpsc::{self, Sender, Receiver},
 };
 
 const MIN_MAINTAINED_RISK: f64 = 0.000001;
@@ -1398,6 +1399,8 @@ pub struct ConsensusGraph {
     pub statistics: SharedStatistics,
     finality_manager: RwLock<FinalityManager>,
     pub total_weight_in_past_2d: RwLock<TotalWeightInPast>,
+    consensus_to_block_verifier_sender: Mutex<Sender<VerificationMsg>>,
+    pub block_verifier_to_consensus_receiver: Mutex<Receiver<VerificationMsg>>,
 }
 
 pub type SharedConsensusGraph = Arc<ConsensusGraph>;
@@ -1469,10 +1472,24 @@ impl ConsensusGraph {
             conf.bench_mode,
         ));
 
+        let (
+            block_verifier_to_consensus_sender,
+            block_verifier_to_consensus_receiver,
+        ) = mpsc::channel::<VerificationMsg>();
+        let (
+            consensus_to_block_verifier_sender,
+            consensus_to_block_verifier_receiver,
+        ) = mpsc::channel::<VerificationMsg>();
+
+        let block_verifier = BlockVerifier::new(block_verifier_to_consensus_sender,
+                                                            consensus_to_block_verifier_receiver);
+
+        block_verifier.start();
+
         ConsensusGraph {
             conf,
             inner,
-            block_verifier: BlockVerifier::new(),
+            block_verifier,
             txpool,
             data_man: data_man.clone(),
             invalid_blocks: RwLock::new(HashSet::new()),
@@ -1487,6 +1504,8 @@ impl ConsensusGraph {
                 cur: U256::zero(),
                 delta: U256::zero(),
             }),
+            consensus_to_block_verifier_sender: Mutex::new(consensus_to_block_verifier_sender),
+            block_verifier_to_consensus_receiver: Mutex::new(block_verifier_to_consensus_receiver),
         }
     }
 
@@ -2750,11 +2769,15 @@ impl ConsensusGraph {
         self.update_lcts_finalize(inner, me, stable);
     }
 
+    pub fn resolve_validity(&self, me: usize, valid: bool, stable: bool, adaptive: bool) {
+        // TODO
+    }
+
     /// This is the main function that SynchronizationGraph calls to deliver a
     /// new block to the consensus graph.
     pub fn on_new_block(
-        &self, hash: &H256, blockset_in_own_epoch: HashSet<usize>,
-    ) {
+        &self, hash: &H256, blockset_in_own_epoch: HashSet<usize>, _last_blocked_index: usize,
+    ) -> usize {
         let block = self.data_man.block_by_hash(hash, true).unwrap();
 
         debug!(
@@ -3027,7 +3050,7 @@ impl ConsensusGraph {
 
         // Now we can safely return
         if !fully_valid {
-            return;
+            return 0;
         }
 
         let to_state_pos = if inner.pivot_chain.len()
@@ -3078,6 +3101,8 @@ impl ConsensusGraph {
         };
         inner.persist_terminals();
         debug!("Finish processing block in ConsensusGraph: hash={:?}", hash);
+
+        return 0;
     }
 
     pub fn best_block_hash(&self) -> H256 {
