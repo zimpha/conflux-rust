@@ -2,6 +2,7 @@
 // Conflux is free software and distributed under GNU General Public License.
 // See http://www.gnu.org/licenses/
 
+pub mod block_verifier;
 mod confirmation;
 mod consensus_executor;
 mod debug;
@@ -12,6 +13,7 @@ use crate::{
     block_data_manager::BlockDataManager,
     cache_manager::{CacheId, CacheManager},
     consensus::{
+        block_verifier::BlockVerifier,
         confirmation::ConfirmationTrait,
         consensus_executor::{EpochExecutionTask, RewardExecutionInfo},
     },
@@ -1388,6 +1390,7 @@ pub struct TotalWeightInPast {
 pub struct ConsensusGraph {
     pub conf: ConsensusConfig,
     pub inner: Arc<RwLock<ConsensusGraphInner>>,
+    block_verifier: BlockVerifier,
     pub txpool: SharedTransactionPool,
     pub data_man: Arc<BlockDataManager>,
     pub invalid_blocks: RwLock<HashSet<H256>>,
@@ -1469,6 +1472,7 @@ impl ConsensusGraph {
         ConsensusGraph {
             conf,
             inner,
+            block_verifier: BlockVerifier::new(),
             txpool,
             data_man: data_man.clone(),
             invalid_blocks: RwLock::new(HashSet::new()),

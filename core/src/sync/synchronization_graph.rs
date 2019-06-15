@@ -5,7 +5,10 @@
 use crate::{
     block_data_manager::BlockDataManager,
     cache_manager::{CacheId, CacheManager, CacheSize},
-    consensus::{ConsensusGraphInner, SharedConsensusGraph},
+    consensus::{
+        block_verifier::{BlockVerifier, VerificationMsg},
+        ConsensusGraphInner, SharedConsensusGraph,
+    },
     db::COL_MISC,
     error::{BlockError, Error, ErrorKind},
     machine::new_machine,
@@ -492,6 +495,14 @@ impl SynchronizationGraph {
     {
         let data_man = consensus.data_man.clone();
         let (consensus_sender, consensus_receiver) = mpsc::channel();
+        let (
+            block_verifier_to_consensus_sender,
+            block_verifier_to_consensus_receiver,
+        ) = mpsc::channel::<VerificationMsg>();
+        let (
+            consensus_to_block_verifier_sender,
+            consensus_to_block_verifier_receiver,
+        ) = mpsc::channel::<VerificationMsg>();
         let inner = Arc::new(RwLock::new(
             SynchronizationGraphInner::with_genesis_block(
                 Arc::new(data_man.genesis_block().block_header.clone()),
@@ -510,6 +521,15 @@ impl SynchronizationGraph {
             statistics: consensus.statistics.clone(),
             consensus_sender: Mutex::new(consensus_sender),
         };
+
+        thread::Builder::new()
+            .name("Block Verifier".into())
+            .spawn(move || loop {
+                match consensus_to_block_verifier_receiver.recv() {
+                    _ => {}
+                }
+            })
+            .expect("Cannot fail");
 
         // It receives `BLOCK_GRAPH_READY` blocks in order and handles them in
         // `ConsensusGraph`
