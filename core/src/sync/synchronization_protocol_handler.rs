@@ -7,7 +7,10 @@ use super::{
     SharedSynchronizationGraph, SynchronizationGraph, SynchronizationPeerState,
     SynchronizationState,
 };
-use crate::{consensus::SharedConsensusGraph, pow::ProofOfWorkConfig};
+use crate::{
+    consensus::{block_verifier::VerificationMsg, SharedConsensusGraph},
+    pow::ProofOfWorkConfig,
+};
 use cfx_types::H256;
 use io::TimerToken;
 use message::{
@@ -46,7 +49,11 @@ use std::{
     cmp,
     collections::{HashMap, HashSet, VecDeque},
     iter::FromIterator,
-    sync::{atomic::Ordering as AtomicOrdering, mpsc::channel, Arc},
+    sync::{
+        atomic::Ordering as AtomicOrdering,
+        mpsc::{channel, Receiver},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 use threadpool::ThreadPool;
@@ -131,6 +138,7 @@ impl SynchronizationProtocolHandler {
     pub fn new(
         protocol_config: ProtocolConfiguration,
         consensus_graph: SharedConsensusGraph,
+        block_verifier_to_consensus_receiver: Receiver<VerificationMsg>,
         verification_config: VerificationConfig, pow_config: ProofOfWorkConfig,
         fast_recover: bool,
     ) -> Self
@@ -144,6 +152,7 @@ impl SynchronizationProtocolHandler {
             protocol_config,
             graph: Arc::new(SynchronizationGraph::new(
                 consensus_graph.clone(),
+                block_verifier_to_consensus_receiver,
                 verification_config,
                 pow_config,
                 fast_recover,

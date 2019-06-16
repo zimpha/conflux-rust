@@ -128,34 +128,37 @@ fn initialize_consensus_graph_for_test(
 
     let vm = VmFactory::new(1024 * 32);
     let pow_config = ProofOfWorkConfig::new(true, Some(10));
-    let consensus = Arc::new(ConsensusGraph::with_genesis_block(
-        ConsensusConfig {
-            debug_dump_dir_invalid_state_root: "./invalid_state_root/"
-                .to_string(),
-            record_tx_address: true,
-            inner_conf: ConsensusInnerConfig {
-                adaptive_weight_alpha_num: alpha_num,
-                adaptive_weight_alpha_den: alpha_den,
-                adaptive_weight_beta: beta,
-                heavy_block_difficulty_ratio: h,
-                enable_optimistic_execution: false,
+    let (consensus_raw, receiver_from_block_verifier) =
+        ConsensusGraph::with_genesis_block(
+            ConsensusConfig {
+                debug_dump_dir_invalid_state_root: "./invalid_state_root/"
+                    .to_string(),
+                record_tx_address: true,
+                inner_conf: ConsensusInnerConfig {
+                    adaptive_weight_alpha_num: alpha_num,
+                    adaptive_weight_alpha_den: alpha_den,
+                    adaptive_weight_beta: beta,
+                    heavy_block_difficulty_ratio: h,
+                    enable_optimistic_execution: false,
+                },
+                bench_mode: true, /* Set bench_mode to true so that we skip
+                                   * execution */
             },
-            bench_mode: true, /* Set bench_mode to true so that we skip
-                               * execution */
-        },
-        genesis_block,
-        storage_manager.clone(),
-        vm.clone(),
-        txpool.clone(),
-        statistics.clone(),
-        ledger_db.clone(),
-        cache_man.clone(),
-        pow_config.clone(),
-    ));
+            genesis_block,
+            storage_manager.clone(),
+            vm.clone(),
+            txpool.clone(),
+            statistics.clone(),
+            ledger_db.clone(),
+            cache_man.clone(),
+            pow_config.clone(),
+        );
+    let consensus = Arc::new(consensus_raw);
 
     let verification_config = VerificationConfig::new(true);
     let sync = Arc::new(SynchronizationGraph::new(
         consensus.clone(),
+        receiver_from_block_verifier,
         verification_config,
         pow_config,
         true,

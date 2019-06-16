@@ -192,23 +192,26 @@ impl Client {
 
         let vm = VmFactory::new(1024 * 32);
         let pow_config = conf.pow_config();
-        let consensus = Arc::new(ConsensusGraph::with_genesis_block(
-            conf.consensus_config(),
-            genesis_block,
-            storage_manager.clone(),
-            vm.clone(),
-            txpool.clone(),
-            statistics.clone(),
-            ledger_db.clone(),
-            cache_man.clone(),
-            pow_config.clone(),
-        ));
+        let (consensus_raw, receiver_from_block_verifier) =
+            ConsensusGraph::with_genesis_block(
+                conf.consensus_config(),
+                genesis_block,
+                storage_manager.clone(),
+                vm.clone(),
+                txpool.clone(),
+                statistics.clone(),
+                ledger_db.clone(),
+                cache_man.clone(),
+                pow_config.clone(),
+            );
+        let consensus = Arc::new(consensus_raw);
 
         let verification_config = conf.verification_config();
         let protocol_config = conf.protocol_config();
         let mut sync = cfxcore::SynchronizationService::new(
             NetworkService::new(network_config),
             consensus.clone(),
+            receiver_from_block_verifier,
             protocol_config,
             verification_config,
             pow_config.clone(),

@@ -48,10 +48,12 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     io::Write,
     iter::FromIterator,
-    sync::Arc,
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        Arc,
+    },
     thread::sleep,
     time::Duration,
-    sync::mpsc::{self, Sender, Receiver},
 };
 
 const MIN_MAINTAINED_RISK: f64 = 0.000001;
@@ -1400,7 +1402,6 @@ pub struct ConsensusGraph {
     finality_manager: RwLock<FinalityManager>,
     pub total_weight_in_past_2d: RwLock<TotalWeightInPast>,
     consensus_to_block_verifier_sender: Mutex<Sender<VerificationMsg>>,
-    pub block_verifier_to_consensus_receiver: Mutex<Receiver<VerificationMsg>>,
 }
 
 pub type SharedConsensusGraph = Arc<ConsensusGraph>;
@@ -1449,7 +1450,7 @@ impl ConsensusGraph {
         txpool: SharedTransactionPool, statistics: SharedStatistics,
         db: Arc<SystemDB>, cache_man: Arc<Mutex<CacheManager<CacheId>>>,
         pow_config: ProofOfWorkConfig,
-    ) -> Self
+    ) -> (Self, Receiver<VerificationMsg>)
     {
         let data_man = Arc::new(BlockDataManager::new(
             Arc::new(genesis_block),
@@ -1481,32 +1482,36 @@ impl ConsensusGraph {
             consensus_to_block_verifier_receiver,
         ) = mpsc::channel::<VerificationMsg>();
 
-        let block_verifier = BlockVerifier::new(block_verifier_to_consensus_sender,
-                                                            consensus_to_block_verifier_receiver);
+        let block_verifier =
+            BlockVerifier::new(block_verifier_to_consensus_sender);
 
-        block_verifier.start();
+        block_verifier.start(consensus_to_block_verifier_receiver);
 
-        ConsensusGraph {
-            conf,
-            inner,
-            block_verifier,
-            txpool,
-            data_man: data_man.clone(),
-            invalid_blocks: RwLock::new(HashSet::new()),
-            executor,
-            statistics,
-            finality_manager: RwLock::new(FinalityManager {
-                lowest_epoch_num: 0,
-                risks_less_than: VecDeque::new(),
-            }),
-            total_weight_in_past_2d: RwLock::new(TotalWeightInPast {
-                old: U256::zero(),
-                cur: U256::zero(),
-                delta: U256::zero(),
-            }),
-            consensus_to_block_verifier_sender: Mutex::new(consensus_to_block_verifier_sender),
-            block_verifier_to_consensus_receiver: Mutex::new(block_verifier_to_consensus_receiver),
-        }
+        (
+            ConsensusGraph {
+                conf,
+                inner,
+                block_verifier,
+                txpool,
+                data_man: data_man.clone(),
+                invalid_blocks: RwLock::new(HashSet::new()),
+                executor,
+                statistics,
+                finality_manager: RwLock::new(FinalityManager {
+                    lowest_epoch_num: 0,
+                    risks_less_than: VecDeque::new(),
+                }),
+                total_weight_in_past_2d: RwLock::new(TotalWeightInPast {
+                    old: U256::zero(),
+                    cur: U256::zero(),
+                    delta: U256::zero(),
+                }),
+                consensus_to_block_verifier_sender: Mutex::new(
+                    consensus_to_block_verifier_sender,
+                ),
+            },
+            block_verifier_to_consensus_receiver,
+        )
     }
 
     pub fn later_than(&self, a: &H256, b: &H256) -> bool {
@@ -2769,15 +2774,19 @@ impl ConsensusGraph {
         self.update_lcts_finalize(inner, me, stable);
     }
 
-    pub fn resolve_validity(&self, me: usize, valid: bool, stable: bool, adaptive: bool) {
+    pub fn resolve_validity(
+        &self, _me: usize, _valid: bool, _stable: bool, _adaptive: bool,
+    ) {
         // TODO
     }
 
     /// This is the main function that SynchronizationGraph calls to deliver a
     /// new block to the consensus graph.
     pub fn on_new_block(
-        &self, hash: &H256, blockset_in_own_epoch: HashSet<usize>, _last_blocked_index: usize,
-    ) -> usize {
+        &self, hash: &H256, blockset_in_own_epoch: HashSet<usize>,
+        _last_blocked_index: usize,
+    ) -> usize
+    {
         let block = self.data_man.block_by_hash(hash, true).unwrap();
 
         debug!(

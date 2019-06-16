@@ -1,8 +1,9 @@
-use std::collections::HashSet;
 use cfx_types::U256;
-use std::sync::mpsc::{Sender, Receiver};
-use std::thread;
 use parking_lot::Mutex;
+use std::{
+    sync::mpsc::{Receiver, Sender},
+    thread,
+};
 
 /// The verification message kinds that transmit between ConsensusGraph
 /// and BlockVerifier.
@@ -42,42 +43,46 @@ pub enum VerificationMsg {
 
 pub struct BlockVerifier {
     block_verifier_to_consensus_sender: Mutex<Sender<VerificationMsg>>,
-    consensus_to_block_verifier_receiver: Mutex<Receiver<VerificationMsg>>,
 }
 
 impl BlockVerifier {
-    pub fn new(block_verifier_to_consensus_sender: Sender<VerificationMsg>,
-               consensus_to_block_verifier_receiver: Receiver<VerificationMsg>) -> Self {
+    pub fn new(
+        block_verifier_to_consensus_sender: Sender<VerificationMsg>,
+    ) -> Self {
         Self {
-            block_verifier_to_consensus_sender: Mutex::new(block_verifier_to_consensus_sender),
-            consensus_to_block_verifier_receiver: Mutex::new(consensus_to_block_verifier_receiver),
+            block_verifier_to_consensus_sender: Mutex::new(
+                block_verifier_to_consensus_sender,
+            ),
         }
     }
 
-    pub fn start(&self) {
+    pub fn start(
+        &self, consensus_to_block_verifier_receiver: Receiver<VerificationMsg>,
+    ) {
         thread::Builder::new()
             .name("Block Verifier".into())
-            .spawn( move || loop {
-                match self.consensus_to_block_verifier_receiver.lock().recv() {
+            .spawn(move || loop {
+                match consensus_to_block_verifier_receiver.recv() {
                     Ok(VerificationMsg::NewBlock {
-                        me,
-                        parent,
-                        referees,
-                        past_weight_lower,
-                        past_weight_upper,
-                        pending,
-                        valid,
-                        stable,
-                        adaptive,
-                       }) => {
+                        me: _,
+                        parent: _,
+                        referees: _,
+                        past_weight_lower: _,
+                        past_weight_upper: _,
+                        pending: _,
+                        valid: _,
+                        stable: _,
+                        adaptive: _,
+                    }) => {
                         // TODO
-                    },
-                    Ok(VerificationMsg::WaitVerify(to_verify_index)) => {
+                    }
+                    Ok(VerificationMsg::WaitVerify(_to_verify_index)) => {
                         // TODO
-                    },
-                    Ok(msg) => panic!("Unexpected message type."),
+                    }
+                    Ok(_) => panic!("Unexpected message type."),
                     Err(_) => break,
                 }
-            }).expect("Block Verifier thread failed!");
+            })
+            .expect("Block Verifier thread failed!");
     }
 }

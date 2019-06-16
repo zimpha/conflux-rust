@@ -7,7 +7,8 @@ use super::{
     SYNCHRONIZATION_PROTOCOL_VERSION,
 };
 use crate::{
-    consensus::SharedConsensusGraph, pow::ProofOfWorkConfig,
+    consensus::{block_verifier::VerificationMsg, SharedConsensusGraph},
+    pow::ProofOfWorkConfig,
     sync::synchronization_protocol_handler::ProtocolConfiguration,
     verification::VerificationConfig,
 };
@@ -18,7 +19,7 @@ use network::{
     Error as NetworkError, NetworkService, PeerInfo, ProtocolId,
 };
 use primitives::Block;
-use std::sync::Arc;
+use std::sync::{mpsc::Receiver, Arc};
 
 pub struct SynchronizationService {
     network: NetworkService,
@@ -29,6 +30,7 @@ pub struct SynchronizationService {
 impl SynchronizationService {
     pub fn new(
         network: NetworkService, consensus_graph: SharedConsensusGraph,
+        block_verifier_to_consensus_receiver: Receiver<VerificationMsg>,
         protocol_config: ProtocolConfiguration,
         verification_config: VerificationConfig, pow_config: ProofOfWorkConfig,
         fast_recover: bool,
@@ -37,6 +39,7 @@ impl SynchronizationService {
         let sync_handler = Arc::new(SynchronizationProtocolHandler::new(
             protocol_config,
             consensus_graph,
+            block_verifier_to_consensus_receiver,
             verification_config,
             pow_config,
             fast_recover,
