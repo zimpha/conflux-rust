@@ -1393,7 +1393,6 @@ pub struct TotalWeightInPast {
 pub struct ConsensusGraph {
     pub conf: ConsensusConfig,
     pub inner: Arc<RwLock<ConsensusGraphInner>>,
-    block_verifier: BlockVerifier,
     pub txpool: SharedTransactionPool,
     pub data_man: Arc<BlockDataManager>,
     pub invalid_blocks: RwLock<HashSet<H256>>,
@@ -1491,7 +1490,6 @@ impl ConsensusGraph {
             ConsensusGraph {
                 conf,
                 inner,
-                block_verifier,
                 txpool,
                 data_man: data_man.clone(),
                 invalid_blocks: RwLock::new(HashSet::new()),

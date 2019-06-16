@@ -591,7 +591,10 @@ impl SynchronizationGraph {
                             have_job = true;
                         }
                         Err(TryRecvError::Empty) => {}
-                        Err(_) => break,
+                        Err(_) => {
+                            debug!("Consensus Channel disconnected!");
+                            break;
+                        }
                     };
                     match block_verifier_to_consensus_receiver.try_recv() {
                         Ok(VerificationMsg::VerificationResults {
@@ -621,12 +624,16 @@ impl SynchronizationGraph {
                             panic!("Unexpected message type from BlockVerifier")
                         }
                         Err(TryRecvError::Empty) => {}
-                        Err(_) => break,
+                        Err(_) => {
+                            debug!("Block Verifier disconnected!");
+                            break;
+                        }
                     }
                     if !have_job {
                         thread::sleep_ms(CONSENSUS_EVENT_LOOP_SLEEP);
                     }
                 }
+                info!("Consensus Worker quit!");
             })
             .expect("Consensus Worker failed!");
     }

@@ -1,5 +1,4 @@
 use cfx_types::U256;
-use parking_lot::Mutex;
 use std::{
     sync::mpsc::{Receiver, Sender},
     thread,
@@ -42,7 +41,7 @@ pub enum VerificationMsg {
 }
 
 pub struct BlockVerifier {
-    block_verifier_to_consensus_sender: Mutex<Sender<VerificationMsg>>,
+    block_verifier_to_consensus_sender: Sender<VerificationMsg>,
 }
 
 impl BlockVerifier {
@@ -50,38 +49,51 @@ impl BlockVerifier {
         block_verifier_to_consensus_sender: Sender<VerificationMsg>,
     ) -> Self {
         Self {
-            block_verifier_to_consensus_sender: Mutex::new(
-                block_verifier_to_consensus_sender,
-            ),
+            block_verifier_to_consensus_sender,
         }
     }
 
     pub fn start(
-        &self, consensus_to_block_verifier_receiver: Receiver<VerificationMsg>,
+        self, consensus_to_block_verifier_receiver: Receiver<VerificationMsg>,
     ) {
         thread::Builder::new()
             .name("Block Verifier".into())
-            .spawn(move || loop {
-                match consensus_to_block_verifier_receiver.recv() {
-                    Ok(VerificationMsg::NewBlock {
-                        me: _,
-                        parent: _,
-                        referees: _,
-                        past_weight_lower: _,
-                        past_weight_upper: _,
-                        pending: _,
-                        valid: _,
-                        stable: _,
-                        adaptive: _,
-                    }) => {
-                        // TODO
+            .spawn(move || {
+                loop {
+                    match consensus_to_block_verifier_receiver.recv() {
+                        Ok(VerificationMsg::NewBlock {
+                            me,
+                            parent: _,
+                            referees: _,
+                            past_weight_lower: _,
+                            past_weight_upper: _,
+                            pending: _,
+                            valid,
+                            stable,
+                            adaptive,
+                        }) => {
+                            // TODO, This is just a dummy place holder
+                            if me == 0 {
+                                self.block_verifier_to_consensus_sender
+                                    .send(
+                                        VerificationMsg::VerificationResults {
+                                            me,
+                                            valid,
+                                            stable,
+                                            adaptive,
+                                        },
+                                    )
+                                    .expect("cannot fail");
+                            }
+                        }
+                        Ok(VerificationMsg::WaitVerify(_to_verify_index)) => {
+                            // TODO
+                        }
+                        Ok(_) => panic!("Unexpected message type."),
+                        Err(_) => break,
                     }
-                    Ok(VerificationMsg::WaitVerify(_to_verify_index)) => {
-                        // TODO
-                    }
-                    Ok(_) => panic!("Unexpected message type."),
-                    Err(_) => break,
                 }
+                info!("Block Verifier quit!");
             })
             .expect("Block Verifier thread failed!");
     }
