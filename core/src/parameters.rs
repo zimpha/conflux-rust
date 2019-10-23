@@ -31,8 +31,14 @@ pub mod consensus_internal {
     pub const ANTICONE_PENALTY_RATIO: u64 = 100;
     /// 900 Conflux tokens
     pub const BASE_MINING_REWARD: u64 = 900;
+    /// This is the number of tokens of each secondary issuance.
+    pub const BASE_SECONDARY_ISSUANCE: u64 = 900;
+    /// This is number of epochs between two adjacent secondary issuance.
+    pub const SECONDARY_ISSUANCE_GAP: u64 = 1;
     /// The unit of one Conflux token: 10 ** 18
     pub const CONFLUX_TOKEN: u64 = 1_000_000_000_000_000_000;
+    /// The gas price for renting a single byte in Conflux
+    pub const GAS_PRICE_PER_STORAGE_BYTE: usize = 1_000_000_000;
     pub const GAS_PRICE_BLOCK_SAMPLE_SIZE: usize = 100;
     pub const GAS_PRICE_TRANSACTION_SAMPLE_SIZE: usize = 10000;
 

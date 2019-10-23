@@ -24,6 +24,7 @@ impl StorageKey {
     const CODE_PREFIX: &'static [u8] = b"code";
     const KEY_PADDING_BYTES: usize = 32;
     const STORAGE_PREFIX: &'static [u8] = b"data";
+    const STORAGE_SIZE_PREFIX: &'static [u8] = b"size";
 
     fn new_buffer(uninitialized_size: usize) -> Vec<u8> {
         let mut buffer = Vec::with_capacity(uninitialized_size);
@@ -110,6 +111,12 @@ impl StorageKey {
         Self::extend_storage_root(&mut key, address, padding);
 
         StorageKey::StorageKey(key)
+    }
+
+    pub fn new_storage_size_key(
+        address: &Address, padding: &KeyPadding,
+    ) -> StorageKey {
+        Self::new_storage_key(address, &Self::STORAGE_SIZE_PREFIX, padding)
     }
 
     pub fn new_storage_key(

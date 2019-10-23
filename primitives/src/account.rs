@@ -5,25 +5,37 @@
 use crate::hash::KECCAK_EMPTY;
 use cfx_types::{Address, H256, U256};
 use rlp::*;
+use rlp_derive::{RlpDecodable, RlpEncodable};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, RlpDecodable, RlpEncodable)]
 pub struct Account {
     pub address: Address,
     pub balance: U256,
     pub nonce: U256,
     pub code_hash: H256,
+    /// This is the number of tokens used to rent storage.
+    pub locked_balance: U256,
+    /// This is the number of tokens deposited in bank.
+    pub bank_balance: U256,
+    /// This is the accumulated interest rate at latest deposit.
+    pub bank_ar: U256,
     // TODO: check if we need the storage root, and if so, implement.
 }
 
 impl Account {
     pub fn new_empty_with_balance(
-        address: &Address, balance: &U256, nonce: &U256,
-    ) -> Account {
+        address: &Address, balance: &U256, nonce: &U256, locked_balance: &U256,
+        bank_balance: &U256, bank_ar: &U256,
+    ) -> Account
+    {
         Self {
             address: address.clone(),
             balance: balance.clone(),
             nonce: nonce.clone(),
             code_hash: KECCAK_EMPTY,
+            locked_balance: locked_balance.clone(),
+            bank_balance: bank_balance.clone(),
+            bank_ar: bank_ar.clone(),
         }
     }
 
@@ -36,27 +48,5 @@ impl Account {
         }
 
         Ok(account)
-    }
-}
-
-impl Decodable for Account {
-    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        Ok(Account {
-            address: rlp.val_at(0)?,
-            balance: rlp.val_at(1)?,
-            nonce: rlp.val_at(2)?,
-            code_hash: rlp.val_at(3)?,
-        })
-    }
-}
-
-impl Encodable for Account {
-    fn rlp_append(&self, stream: &mut RlpStream) {
-        stream
-            .begin_list(4)
-            .append(&self.address)
-            .append(&self.balance)
-            .append(&self.nonce)
-            .append(&self.code_hash);
     }
 }

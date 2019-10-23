@@ -153,6 +153,8 @@ impl<'a> State<'a> {
             AccountEntry::new_dirty(Some(OverlayAccount::new_contract(
                 contract,
                 balance,
+                // TODO: set correctly
+                0.into(),
                 self.account_start_nonce + nonce_offset,
                 true,
             ))),
@@ -163,6 +165,12 @@ impl<'a> State<'a> {
     pub fn balance(&self, address: &Address) -> DbResult<U256> {
         self.ensure_cached(address, RequireCache::None, true, |acc| {
             acc.map_or(U256::zero(), |account| *account.balance())
+        })
+    }
+
+    pub fn locked_balance(&self, address: &Address) -> DbResult<U256> {
+        self.ensure_cached(address, RequireCache::None, true, |acc| {
+            acc.map_or(U256::zero(), |account| *account.locked_balance())
         })
     }
 
@@ -334,6 +342,8 @@ impl<'a> State<'a> {
                 OverlayAccount::new_contract(
                     address,
                     0.into(),
+                    // TODO: set correctly
+                    0.into(),
                     self.account_start_nonce,
                     false,
                 )
@@ -351,6 +361,23 @@ impl<'a> State<'a> {
     {
         self.sub_balance(from, by, &mut cleanup_mode)?;
         self.add_balance(to, by, cleanup_mode)?;
+        Ok(())
+    }
+
+    pub fn estimate_storage_size(&self, address: &Address) -> DbResult<usize> {
+        self.require(address, false)?
+            .estimate_storage_size(&self.db)
+    }
+
+    pub fn deposit(
+        &mut self, account: &Address, amount: &U256,
+    ) -> DbResult<()> {
+        Ok(())
+    }
+
+    pub fn withdraw(
+        &mut self, account: &Address, amount: &U256,
+    ) -> DbResult<()> {
         Ok(())
     }
 
@@ -560,6 +587,8 @@ impl<'a> State<'a> {
             || {
                 OverlayAccount::new_basic(
                     address,
+                    0.into(),
+                    // TODO: set correctly
                     0.into(),
                     self.account_start_nonce,
                 )

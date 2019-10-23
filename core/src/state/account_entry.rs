@@ -22,9 +22,20 @@ pub struct OverlayAccount {
     balance: U256,
     // Nonce of the account,
     nonce: U256,
+    /// This is the number of tokens locked for renting storage
+    locked_balance: U256,
+    /// This is the number of tokens deposited in bank.
+    bank_balance: U256,
+    /// This is the accumulated interest rate at latest deposit.
+    bank_ar: U256,
 
     storage_cache: RefCell<HashMap<H256, H256>>,
     storage_changes: HashMap<H256, H256>,
+    /// This indicates the ownership of each storage key.
+    storage_ownership: HashMap<H256, Address>,
+    /// This is the number of tokens used for storage and maximum number of
+    /// tokens could be used for storage for each account.
+    storage_usage_cache: HashMap<Address, (U256, U256)>,
 
     // Code hash of the account.
     code_hash: H256,
@@ -41,9 +52,14 @@ impl OverlayAccount {
         OverlayAccount {
             address: address.clone(),
             balance: account.balance,
+            locked_balance: account.locked_balance,
+            bank_balance: account.bank_balance,
+            bank_ar: account.bank_ar,
             nonce: account.nonce,
             storage_cache: RefCell::new(HashMap::new()),
             storage_changes: HashMap::new(),
+            storage_ownership: HashMap::new(),
+            storage_usage_cache: HashMap::new(),
             code_hash: account.code_hash,
             code_size: None,
             code_cache: Arc::new(vec![]),
@@ -51,13 +67,20 @@ impl OverlayAccount {
         }
     }
 
-    pub fn new_basic(address: &Address, balance: U256, nonce: U256) -> Self {
+    pub fn new_basic(
+        address: &Address, balance: U256, nonce: U256, locked_balance: U256,
+    ) -> Self {
         OverlayAccount {
             address: address.clone(),
             balance,
             nonce,
+            locked_balance,
+            bank_balance: 0.into(),
+            bank_ar: 0.into(),
             storage_cache: RefCell::new(HashMap::new()),
             storage_changes: HashMap::new(),
+            storage_ownership: HashMap::new(),
+            storage_usage_cache: HashMap::new(),
             code_hash: KECCAK_EMPTY,
             code_size: None,
             code_cache: Arc::new(vec![]),
@@ -66,14 +89,21 @@ impl OverlayAccount {
     }
 
     pub fn new_contract(
-        address: &Address, balance: U256, nonce: U256, reset_storage: bool,
-    ) -> Self {
+        address: &Address, balance: U256, nonce: U256, locked_balance: U256,
+        reset_storage: bool,
+    ) -> Self
+    {
         OverlayAccount {
             address: address.clone(),
             balance,
             nonce,
+            locked_balance,
+            bank_balance: 0.into(),
+            bank_ar: 0.into(),
             storage_cache: RefCell::new(HashMap::new()),
             storage_changes: HashMap::new(),
+            storage_ownership: HashMap::new(),
+            storage_usage_cache: HashMap::new(),
             code_hash: KECCAK_EMPTY,
             code_size: None,
             code_cache: Arc::new(vec![]),
@@ -83,10 +113,13 @@ impl OverlayAccount {
 
     pub fn as_account(&self) -> Account {
         Account {
-            address: self.address.clone(),
-            balance: self.balance.clone(),
-            nonce: self.nonce.clone(),
-            code_hash: self.code_hash.clone(),
+            address: self.address,
+            balance: self.balance,
+            nonce: self.nonce,
+            code_hash: self.code_hash,
+            locked_balance: self.locked_balance,
+            bank_balance: self.bank_balance,
+            bank_ar: self.bank_ar,
         }
     }
 
@@ -95,6 +128,12 @@ impl OverlayAccount {
     pub fn balance(&self) -> &U256 { &self.balance }
 
     pub fn nonce(&self) -> &U256 { &self.nonce }
+
+    pub fn locked_balance(&self) -> &U256 { &self.locked_balance }
+
+    pub fn bank_balance(&self) -> &U256 { &self.bank_balance }
+
+    pub fn bank_ar(&self) -> &U256 { &self.bank_ar }
 
     pub fn code_hash(&self) -> H256 { self.code_hash.clone() }
 
@@ -107,9 +146,6 @@ impl OverlayAccount {
             Some(self.code_cache.clone())
         }
     }
-
-    #[allow(dead_code)]
-    pub fn reset_storage(&mut self) { self.reset_storage = true; }
 
     pub fn is_cached(&self) -> bool {
         !self.code_cache.is_empty()
@@ -160,8 +196,13 @@ impl OverlayAccount {
             address: self.address.clone(),
             balance: self.balance.clone(),
             nonce: self.nonce.clone(),
+            locked_balance: self.locked_balance,
+            bank_balance: self.bank_balance,
+            bank_ar: self.bank_ar,
             storage_cache: RefCell::new(HashMap::new()),
             storage_changes: HashMap::new(),
+            storage_ownership: HashMap::new(),
+            storage_usage_cache: HashMap::new(),
             code_hash: self.code_hash.clone(),
             code_size: self.code_size.clone(),
             code_cache: self.code_cache.clone(),
@@ -172,7 +213,6 @@ impl OverlayAccount {
     pub fn clone_dirty(&self) -> Self {
         let mut account = self.clone_basic();
         account.storage_changes = self.storage_changes.clone();
-        account.reset_storage = self.reset_storage;
         account
     }
 
@@ -245,6 +285,9 @@ impl OverlayAccount {
     pub fn overwrite_with(&mut self, other: OverlayAccount) {
         self.balance = other.balance;
         self.nonce = other.nonce;
+        self.locked_balance = other.locked_balance;
+        self.bank_balance = other.bank_balance;
+        self.bank_ar = other.bank_ar;
         self.code_hash = other.code_hash;
         self.code_cache = other.code_cache;
         self.code_size = other.code_size;
@@ -253,21 +296,64 @@ impl OverlayAccount {
         self.reset_storage = other.reset_storage;
     }
 
-    pub fn commit<'a>(&mut self, db: &mut StateDb<'a>) -> DbResult<()> {
+    pub fn estimate_storage_size<'a>(
+        &self, db: &StateDb<'a>,
+    ) -> DbResult<usize> {
+        let mut current_storage_size = db.get_storage_size(&self.address)?;
+        if self.reset_storage {
+            current_storage_size = 0;
+            for (k, v) in &self.storage_changes {
+                if !v.is_zero() {
+                    current_storage_size += H256::len_bytes();
+                }
+            }
+        } else {
+            for (k, v) in &self.storage_changes {
+                let storage_key = db.storage_key(&self.address, k.as_ref());
+                let original_value = db.get::<H256>(&storage_key)?;
+                if v.is_zero() {
+                    current_storage_size -=
+                        original_value.map_or(0, |_| H256::len_bytes());
+                } else if original_value.is_none() {
+                    current_storage_size += H256::len_bytes();
+                }
+            }
+        }
+
+        Ok(current_storage_size + self.code_size.unwrap_or(0))
+    }
+
+    pub fn commit<'a>(
+        &mut self, db: &mut StateDb<'a>,
+    ) -> DbResult<(usize, usize)> {
+        let current_storage_size = db.get_storage_size(&self.address)?;
+        let mut freed_storage_size = 0;
+        let mut allocated_storage_size = 0;
         if self.reset_storage {
             db.delete_all(&db.storage_root_key(&self.address))?;
             db.delete_all(&db.code_root_key(&self.address))?;
+            freed_storage_size = current_storage_size;
         }
 
         for (k, v) in self.storage_changes.drain() {
             let address_key = db.storage_key(&self.address, k.as_ref());
+            let original_value = db.get::<H256>(&address_key)?;
 
             match v.is_zero() {
-                true => db.delete(&address_key)?,
-                false => db.set::<H256>(
-                    &address_key,
-                    &BigEndianHash::from_uint(&v.into_uint()),
-                )?,
+                true => {
+                    db.delete(&address_key)?;
+                    freed_storage_size +=
+                        original_value.map_or(0, |_| H256::len_bytes());
+                }
+                false => {
+                    db.set::<H256>(
+                        &address_key,
+                        &BigEndianHash::from_uint(&v.into_uint()),
+                    )?;
+                    if original_value.is_none() {
+                        allocated_storage_size += H256::len_bytes();
+                    }
+                }
             }
             self.storage_cache.borrow_mut().insert(k, v);
         }
@@ -283,7 +369,12 @@ impl OverlayAccount {
             }
         }
 
-        Ok(())
+        db.set_storage_size(
+            &self.address,
+            current_storage_size - freed_storage_size + allocated_storage_size,
+        )?;
+
+        Ok((freed_storage_size, allocated_storage_size))
     }
 }
 

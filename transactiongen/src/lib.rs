@@ -537,9 +537,13 @@ impl SpecialTransactionGenerator {
         let start_address = public_to_address(start_key_pair.public());
         let info = (
             start_key_pair,
+            // TODO: set correctly
             Account::new_empty_with_balance(
                 &start_address,
                 &start_balance,
+                &0.into(),
+                &0.into(),
+                &0.into(),
                 &0.into(),
             ),
             start_erc20_balance,
@@ -629,8 +633,12 @@ impl SpecialTransactionGenerator {
                             address,
                             (
                                 kp,
+                                // TODO: set correctly
                                 Account::new_empty_with_balance(
                                     &address,
+                                    &0.into(),
+                                    &0.into(),
+                                    &0.into(),
                                     &0.into(),
                                     &0.into(),
                                 ),

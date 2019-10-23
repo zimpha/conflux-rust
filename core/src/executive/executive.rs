@@ -11,6 +11,7 @@ use crate::{
     evm::{FinalizationResult, Finalize},
     hash::keccak,
     machine::Machine,
+    parameters::consensus_internal::GAS_PRICE_PER_STORAGE_BYTE,
     state::{CleanupMode, State, Substate},
 };
 use cfx_types::{Address, H256, U256, U512};
@@ -267,6 +268,14 @@ impl<'a> CallCreateExecutive<'a> {
         Ok(())
     }
 
+    fn exec_deposit_or_withdraw<'b: 'a>(
+        params: &ActionParams, spec: &Spec, state: &mut State<'b>,
+        substate: &mut Substate,
+    ) -> vm::Result<()>
+    {
+        Ok(())
+    }
+
     fn transfer_exec_balance_and_init_contract<'b: 'a>(
         params: &ActionParams, spec: &Spec, state: &mut State<'b>,
         substate: &mut Substate,
@@ -310,6 +319,7 @@ impl<'a> CallCreateExecutive<'a> {
                 state.revert_to_checkpoint();
             }
             Ok(_) | Err(vm::Error::Internal(_)) => {
+                // check storage usage here
                 state.discard_checkpoint();
                 substate.accrue(unconfirmed_substate);
             }
@@ -1138,6 +1148,21 @@ impl<'a, 'b> Executive<'a, 'b> {
         result: vm::Result<FinalizationResult>, output: Bytes,
     ) -> ExecutionResult<Executed>
     {
+        for address in &substate.touched {
+            let locked_balance = self.state.locked_balance(address)?;
+            let estimate_storage_size =
+                self.state.estimate_storage_size(address)? as u64;
+            let renting_fee = U256::from(GAS_PRICE_PER_STORAGE_BYTE)
+                * U256::from(estimate_storage_size);
+            // TODO: clean this storage cache
+            if renting_fee > locked_balance {
+                return Err(ExecutionError::NotEnoughRentingFee {
+                    address: address.clone(),
+                    required: renting_fee,
+                    got: locked_balance,
+                });
+            }
+        }
         let spec = self.spec;
 
         // refunds from SSTORE nonzero -> zero

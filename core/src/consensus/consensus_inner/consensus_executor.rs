@@ -1110,6 +1110,7 @@ impl ConsensusExecutionHandler {
         debug_record: &mut Option<ComputeEpochDebugRecord>,
     )
     {
+        // We should consider both primary and secondary reward
         /// (Fee, SetOfPackingBlockHash)
         struct TxExecutionInfo(U256, BTreeSet<H256>);
 
@@ -1178,13 +1179,6 @@ impl ConsensusExecutionHandler {
                                 U256::try_from(anticone_penalty).unwrap(),
                             ),
                         );
-                        //
-                        // debug_out.anticone_set_size.push(BlockHashValue(
-                        //                            block.hash(),
-                        //
-                        // reward_info.epoch_block_anticone_set_sizes
-                        //                                [enum_idx],
-                        //                        ));
                     }
                 }
 

@@ -65,6 +65,24 @@ impl<'a> StateDb<'a> {
         Ok(Some(::rlp::decode::<T>(raw.as_ref())?))
     }
 
+    pub fn get_storage_size(&self, address: &Address) -> Result<usize> {
+        let storage_size_key = StorageKey::new_storage_size_key(
+            address,
+            self.storage.get_padding(),
+        );
+        self.get::<usize>(&storage_size_key).map(|v| v.unwrap_or(0))
+    }
+
+    pub fn set_storage_size(
+        &mut self, address: &Address, size: usize,
+    ) -> Result<()> {
+        let storage_size_key = StorageKey::new_storage_size_key(
+            address,
+            self.storage.get_padding(),
+        );
+        self.set::<usize>(&storage_size_key, &size)
+    }
+
     pub fn get_code(
         &self, address: &Address, code_hash: &H256,
     ) -> Option<Bytes> {

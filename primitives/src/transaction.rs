@@ -15,6 +15,15 @@ use unexpected::OutOfBounds;
 /// Fake address for unsigned transactions.
 pub const UNSIGNED_SENDER: Address = H160([0xff; 20]);
 
+/// Normal Transaction
+pub const TRANSACTION_TYPE_NORMAL: u8 = 0;
+/// Deposit Transaction
+pub const TRANSACTION_TYPE_DEPOSIT: u8 = 1;
+/// Withdraw Transaction
+pub const TRANSACTION_TYPE_WITHDRAW: u8 = 2;
+/// Renting Storage
+pub const TRANSACTION_TYPE_STORAGE: u8 = 3;
+
 /// Shorter id for transactions in compact blocks
 // TODO should be u48
 pub type TxShortId = u64;
@@ -171,6 +180,8 @@ pub struct Transaction {
     pub value: U256,
     /// Transaction data.
     pub data: Bytes,
+    /// Transaction type.
+    pub tx_type: u8,
 }
 
 impl Transaction {
@@ -231,19 +242,21 @@ impl Decodable for Transaction {
             action: r.val_at(3)?,
             value: r.val_at(4)?,
             data: r.val_at(5)?,
+            tx_type: r.val_at(6)?,
         })
     }
 }
 
 impl Encodable for Transaction {
     fn rlp_append(&self, s: &mut RlpStream) {
-        s.begin_list(6);
+        s.begin_list(7);
         s.append(&self.nonce);
         s.append(&self.gas_price);
         s.append(&self.gas);
         s.append(&self.action);
         s.append(&self.value);
         s.append(&self.data);
+        s.append(&self.tx_type);
     }
 }
 
@@ -279,7 +292,7 @@ impl Deref for TransactionWithSignature {
 
 impl Decodable for TransactionWithSignature {
     fn decode(d: &Rlp) -> Result<Self, DecoderError> {
-        if d.item_count()? != 9 {
+        if d.item_count()? != 10 {
             return Err(DecoderError::RlpIncorrectListLen);
         }
         let hash = keccak(d.as_raw());
@@ -293,10 +306,11 @@ impl Decodable for TransactionWithSignature {
                 action: d.val_at(3)?,
                 value: d.val_at(4)?,
                 data: d.val_at(5)?,
+                tx_type: d.val_at(6)?,
             },
-            v: d.val_at(6)?,
-            r: d.val_at(7)?,
-            s: d.val_at(8)?,
+            v: d.val_at(7)?,
+            r: d.val_at(8)?,
+            s: d.val_at(9)?,
             hash,
             rlp_size,
         })
@@ -333,13 +347,14 @@ impl TransactionWithSignature {
 
     /// Append object with a signature into RLP stream
     fn rlp_append_sealed_transaction(&self, s: &mut RlpStream) {
-        s.begin_list(9);
+        s.begin_list(10);
         s.append(&self.nonce);
         s.append(&self.gas_price);
         s.append(&self.gas);
         s.append(&self.action);
         s.append(&self.value);
         s.append(&self.data);
+        s.append(&self.tx_type);
         s.append(&self.v);
         s.append(&self.r);
         s.append(&self.s);

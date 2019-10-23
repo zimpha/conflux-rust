@@ -75,6 +75,12 @@ pub enum Error {
         /// What was the stack limit
         limit: usize,
     },
+    /// Returned when the storage used exceeds the locked renting fee
+    OutOfStorage {
+        address: Address,
+        required: U256,
+        got: U256,
+    },
     /// Built-in contract failed on given input
     BuiltIn(&'static str),
     /// When execution tries to modify the state in static context
