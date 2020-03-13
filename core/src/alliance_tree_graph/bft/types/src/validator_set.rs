@@ -50,7 +50,6 @@ pub(crate) fn validator_set_path() -> Vec<u8> {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-
 pub struct ValidatorSet<PublicKey>(Vec<ValidatorPublicKeys<PublicKey>>);
 
 impl<PublicKey> fmt::Display for ValidatorSet<PublicKey> {

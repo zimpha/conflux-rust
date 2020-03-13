@@ -356,3 +356,9 @@ class RpcClient:
             return self.node.cfx_call(tx)
         else:
             return self.node.cfx_call(tx, epoch)
+    
+    def set_consortium_administrators(self, admins: list):
+        pass
+
+    def send_new_consortium_member_trans(self, tx: Transaction):
+        pass

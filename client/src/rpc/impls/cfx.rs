@@ -32,7 +32,6 @@ use jsonrpc_core::{
     futures::future::{Future, IntoFuture},
     BoxFuture, Error as RpcError, Result as RpcResult,
 };
-use libra_types::transaction::SignedTransaction as BftSignedTransaction;
 use network::{
     node_table::{Node, NodeId},
     throttling, SessionDetails, UpdateNodeOperation,
@@ -854,7 +853,7 @@ impl Cfx for CfxHandler {
 
     not_supported! {
         fn set_consortium_administrators(&self, admins: Vec<Public>) -> RpcResult<bool>;
-        fn send_new_consortium_member_trans(&self, admin_trans: BftSignedTransaction) -> RpcResult<()>;
+        fn send_new_consortium_member_trans(&self, raw: Bytes) -> RpcResult<()>;
     }
 }
 

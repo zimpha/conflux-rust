@@ -64,6 +64,7 @@ libradb = { path = "../core/src/alliance_tree_graph/bft/storage/libradb" }
 libra-metrics = { path = "../core/src/alliance_tree_graph/bft/common/metrics" }
 libra-crypto = { path = "../core/src/alliance_tree_graph/bft/crypto/crypto" }
 libra-types = { path = "../core/src/alliance_tree_graph/bft/types" }
+lcs = { path = "../core/src/alliance_tree_graph/bft/common/lcs", version = "0.1.0", package = "libra-canonical-serialization" }
 tokio-timer = "0.2.13"
 
 [dev-dependencies]

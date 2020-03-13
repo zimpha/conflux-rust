@@ -237,6 +237,38 @@ impl RawTransaction {
         )))
     }
 
+    /// Signs the given `RawTransaction` with multiple secret/public keys. Note
+    /// that this consumes the `RawTransaction` and turns it into a
+    /// `SignatureCheckedTransaction`.
+    ///
+    /// For a transaction that has just been signed, its signature is expected
+    /// to be valid.
+    pub fn sign_multi(
+        self, secrets: &Vec<Secret>, public_keys: Vec<Public>,
+    ) -> Result<SignatureCheckedTransaction> {
+        assert!(secrets.len() == public_keys.len());
+        let signatures: Vec<_> = secrets
+            .iter()
+            .map(|secret| {
+                Secp256k1Signature::from_signature(::cfxkey::sign(
+                    secret,
+                    &H256::from_slice(self.hash().to_vec().as_slice()),
+                )
+                .expect(
+                    "data is valid and context has signing capabilities; qed",
+                ))
+            })
+            .collect();
+        Ok(SignatureCheckedTransaction(SignedTransaction::new(
+            self,
+            public_keys
+                .iter()
+                .map(|x| Secp256k1PublicKey::from_public(*x))
+                .collect(),
+            signatures,
+        )))
+    }
+
     /*
     pub fn sign(
         self, private_key: &Secp256k1PrivateKey, public_key: Secp256k1PublicKey,

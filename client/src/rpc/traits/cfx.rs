@@ -12,7 +12,6 @@ use crate::rpc::types::BlockHashOrEpochNumber;
 use cfx_types::Public;
 use jsonrpc_core::{BoxFuture, Result as RpcResult};
 use jsonrpc_derive::rpc;
-use libra_types::transaction::SignedTransaction;
 
 /// Cfx rpc interface.
 #[rpc(server)]
@@ -200,9 +199,7 @@ pub trait Cfx {
 
     /// Send admin transaction for alliance membership change.
     #[rpc(name = "cfx_sendNewConsortiumMembershipTrans")]
-    fn send_new_consortium_member_trans(
-        &self, admin_trans: SignedTransaction,
-    ) -> RpcResult<()>;
+    fn send_new_consortium_member_trans(&self, raw: Bytes) -> RpcResult<()>;
 
     //        /// Returns transaction at given block hash and index.
     //        #[rpc(name = "cfx_getTransactionByBlockHashAndIndex")]

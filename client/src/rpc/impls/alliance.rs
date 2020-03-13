@@ -125,9 +125,11 @@ impl RpcImpl {
         Ok(true)
     }
 
-    fn send_new_consortium_member_trans(
-        &self, admin_trans: SignedTransaction,
-    ) -> RpcResult<()> {
+    fn send_new_consortium_member_trans(&self, raw: Bytes) -> RpcResult<()> {
+        let admin_trans: SignedTransaction = lcs::from_bytes(&raw.into_vec())
+            .map_err(|err| {
+            RpcError::invalid_params(format!("Error: {:?}", err))
+        })?;
         *self.admin_transaction.write() = Some(admin_trans);
         Ok(())
     }
@@ -197,7 +199,7 @@ impl Cfx for CfxHandler {
         target self.rpc_impl {
             fn send_raw_transaction(&self, raw: Bytes) -> RpcResult<RpcH256>;
             fn set_consortium_administrators(&self, admins: Vec<Public>) -> RpcResult<bool>;
-            fn send_new_consortium_member_trans(&self, admin_trans: SignedTransaction) -> RpcResult<()>;
+            fn send_new_consortium_member_trans(&self, raw: Bytes) -> RpcResult<()>;
         }
     }
 
