@@ -92,13 +92,14 @@ pub struct ChainedBftSMR<T> {
     config: Option<ChainedBftSMRConfig>,
     storage: Arc<dyn PersistentStorage<T>>,
     initial_data: Option<RecoveryData<T>>,
+    epoch_info: Arc<RwLock<EpochInfo>>,
 }
 
 impl<T: Payload> ChainedBftSMR<T> {
     pub fn new(
         initial_setup: InitialSetup, runtime: Runtime,
         config: ChainedBftSMRConfig, storage: Arc<dyn PersistentStorage<T>>,
-        initial_data: RecoveryData<T>,
+        initial_data: RecoveryData<T>, epoch_info: Arc<RwLock<EpochInfo>>,
     ) -> Self
     {
         Self {
@@ -108,6 +109,7 @@ impl<T: Payload> ChainedBftSMR<T> {
             config: Some(config),
             storage,
             initial_data: Some(initial_data),
+            epoch_info,
         }
     }
 
@@ -211,13 +213,9 @@ impl<T: Payload> StateMachineReplication for ChainedBftSMR<T> {
             channel::new(1_024, &counters::PENDING_PACEMAKER_TIMEOUTS);
         //let (self_sender, self_receiver) = channel::new(1_024,
         // &counters::PENDING_SELF_MESSAGES);
-        let epoch_info = Arc::new(RwLock::new(EpochInfo {
-            epoch: initial_data.epoch(),
-            verifier: initial_data.validators(),
-        }));
 
         let (network_task, network_receiver) =
-            NetworkTask::new(epoch_info.clone());
+            NetworkTask::new(self.epoch_info.clone());
 
         let protocol_handler =
             Arc::new(HotStuffSynchronizationProtocol::with_peers(
@@ -242,7 +240,7 @@ impl<T: Payload> StateMachineReplication for ChainedBftSMR<T> {
         ));
 
         let mut epoch_mgr = EpochManager::new(
-            epoch_info.clone(),
+            self.epoch_info.clone(),
             self.config.take().expect("already started, config is None"),
             time_service,
             //self_sender,

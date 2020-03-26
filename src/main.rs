@@ -14,7 +14,10 @@ use client::{
     light::LightClient,
     tg_archive::TgArchiveClient,
 };
-use command::account::{AccountCmd, ImportAccounts, ListAccounts, NewAccount};
+use command::{
+    account::{AccountCmd, ImportAccounts, ListAccounts, NewAccount},
+    alliance::{AddValidator, AllianceCmd, RemoveValidator},
+};
 use log::{info, LevelFilter};
 use log4rs::{
     append::{console::ConsoleAppender, file::FileAppender},
@@ -181,6 +184,24 @@ fn handle_sub_command(matches: &ArgMatches) -> Result<Option<String>, String> {
             _ => unreachable!(),
         };
         let execute_output = command::account::execute(account_cmd)?;
+        return Ok(Some(execute_output));
+    }
+
+    if let ("alliance", Some(alliance_matches)) = matches.subcommand() {
+        let alliance_cmd = match alliance_matches.subcommand() {
+            ("add_validator", Some(add_validator_matches)) => {
+                AllianceCmd::AddValidator(AddValidator::new(
+                    add_validator_matches,
+                ))
+            }
+            ("remove_validator", Some(remove_validator_matches)) => {
+                AllianceCmd::RemoveValidator(RemoveValidator::new(
+                    remove_validator_matches,
+                ))
+            }
+            _ => unreachable!(),
+        };
+        let execute_output = command::alliance::execute(alliance_cmd)?;
         return Ok(Some(execute_output));
     }
 

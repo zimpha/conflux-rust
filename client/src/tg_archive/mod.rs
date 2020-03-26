@@ -251,6 +251,7 @@ impl TgArchiveClient {
         let executor = consensus_provider.as_ref().unwrap().get_executor();
         let admin_transaction =
             consensus_provider.as_ref().unwrap().get_admin_transaction();
+        let epoch_info = consensus_provider.as_ref().unwrap().get_epoch_info();
 
         if conf.is_test_mode() && conf.raw_conf.data_propagate_enabled {
             let dp = Arc::new(DataPropagation::new(
@@ -408,7 +409,7 @@ impl TgArchiveClient {
         node_config: &mut NodeConfig, tg_sync: SharedSynchronizationService,
         network: Arc<NetworkService>, own_node_hash: H256,
         protocol_config: ProtocolConfiguration,
-    ) -> Option<Box<dyn ConsensusProvider>>
+    ) -> Option<Arc<dyn ConsensusProvider>>
     {
         // Some of our code uses the rayon global thread pool. Name the rayon
         // threads so it doesn't cause confusion, otherwise the threads

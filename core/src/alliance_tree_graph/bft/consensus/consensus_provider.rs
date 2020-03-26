@@ -16,7 +16,7 @@ use std::sync::Arc;
 use super::super::executor::Executor;
 use crate::sync::{ProtocolConfiguration, SharedSynchronizationService};
 use cfx_types::H256;
-use libra_types::transaction::SignedTransaction;
+use libra_types::{crypto_proxies::EpochInfo, transaction::SignedTransaction};
 use parking_lot::RwLock;
 
 /// Public interface to a consensus protocol.
@@ -37,6 +37,7 @@ pub trait ConsensusProvider {
 
     fn get_executor(&self) -> Arc<Executor>;
     fn get_admin_transaction(&self) -> Arc<RwLock<Option<SignedTransaction>>>;
+    fn get_epoch_info(&self) -> Arc<RwLock<EpochInfo>>;
 }
 
 /// Helper function to create a ConsensusProvider based on configuration

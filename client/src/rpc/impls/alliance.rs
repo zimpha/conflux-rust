@@ -31,8 +31,8 @@ use jsonrpc_core::{BoxFuture, Error as RpcError, Result as RpcResult};
 use keccak_hash::keccak;
 use libra_crypto::secp256k1::Secp256k1PublicKey;
 use libra_types::{
-    account_address::AccountAddress, transaction::SignedTransaction,
-    validator_public_keys::ValidatorPublicKeys,
+    account_address::AccountAddress, crypto_proxies::EpochInfo,
+    transaction::SignedTransaction, validator_public_keys::ValidatorPublicKeys,
     validator_set::ValidatorSet as RawValidatorSet,
 };
 use network::{
@@ -52,6 +52,7 @@ pub struct RpcImpl {
     block_gen: Arc<TGBlockGenerator>,
     // tx_gen: SharedTransactionGenerator,
     executor: Arc<Executor>,
+    epoch_info: Arc<RwLock<EpochInfo>>,
     // The manager for administrator transaction (for epoch change).
     admin_transaction: Arc<RwLock<Option<SignedTransaction>>>,
 }
@@ -62,6 +63,7 @@ impl RpcImpl {
         block_gen: Arc<TGBlockGenerator>, tx_pool: SharedTransactionPool,
         _config: RpcImplConfiguration, executor: Arc<Executor>,
         admin_transaction: Arc<RwLock<Option<SignedTransaction>>>,
+        epoch_info: Arc<RwLock<EpochInfo>>,
     ) -> Self
     {
         RpcImpl {
@@ -72,6 +74,7 @@ impl RpcImpl {
             /* config, */
             executor,
             admin_transaction,
+            epoch_info,
         }
     }
 
@@ -176,6 +179,10 @@ impl RpcImpl {
         }
         Ok(result)
     }
+
+    fn get_bft_epoch_number(&self) -> RpcResult<u64> {
+        self.epoch_info.read().epoch
+    }
 }
 
 pub struct CfxHandler {
@@ -200,6 +207,7 @@ impl Cfx for CfxHandler {
             fn send_raw_transaction(&self, raw: Bytes) -> RpcResult<RpcH256>;
             fn set_consortium_administrators(&self, admins: Vec<Public>) -> RpcResult<bool>;
             fn send_new_consortium_member_trans(&self, raw: Bytes) -> RpcResult<()>;
+            fn get_bft_epoch_number(&self) -> RpcResult<u64>;
         }
     }
 

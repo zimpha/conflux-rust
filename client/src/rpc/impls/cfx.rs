@@ -854,6 +854,7 @@ impl Cfx for CfxHandler {
     not_supported! {
         fn set_consortium_administrators(&self, admins: Vec<Public>) -> RpcResult<bool>;
         fn send_new_consortium_member_trans(&self, raw: Bytes) -> RpcResult<()>;
+        fn get_bft_epoch_number(&self) -> RpcResult<u64>;
     }
 }
 

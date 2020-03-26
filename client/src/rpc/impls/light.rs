@@ -471,6 +471,7 @@ impl Cfx for CfxHandler {
         fn accumulate_interest_rate(&self, num: Option<EpochNumber>) -> RpcResult<RpcU256>;
         fn set_consortium_administrators(&self, admins: Vec<Public>) -> RpcResult<bool>;
         fn send_new_consortium_member_trans(&self, raw: Bytes) -> RpcResult<()>;
+        fn get_bft_epoch_number(&self) -> RpcResult<u64>;
     }
 }
 

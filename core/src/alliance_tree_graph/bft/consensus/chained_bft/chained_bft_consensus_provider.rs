@@ -14,7 +14,7 @@ use anyhow::Result;
 use libra_config::config::NodeConfig;
 //use libra_logger::prelude::*;
 //use libra_mempool::proto::mempool_client::MempoolClientWrapper;
-use libra_types::transaction::SignedTransaction;
+use libra_types::{crypto_proxies::EpochInfo, transaction::SignedTransaction};
 //use network::validator_network::{ConsensusNetworkEvents,
 // ConsensusNetworkSender};
 use super::super::safety_rules::SafetyRulesManagerConfig;
@@ -50,6 +50,7 @@ pub struct ChainedBftProvider {
     admin_transaction: Arc<RwLock<Option<SignedTransaction>>>,
     state_computer: Arc<dyn StateComputer<Payload = Vec<SignedTransaction>>>,
     tg_sync: SharedSynchronizationService,
+    epoch_info: Arc<RwLock<EpochInfo>>,
 }
 
 impl ChainedBftProvider {
@@ -79,6 +80,11 @@ impl ChainedBftProvider {
         let txn_transformer = TxnTransformerProxy::default();
         let admin_transaction = Arc::new(RwLock::new(None));
 
+        let epoch_info = Arc::new(RwLock::new(EpochInfo {
+            epoch: initial_data.epoch(),
+            verifier: initial_data.validators(),
+        }));
+
         let state_computer = Arc::new(ExecutionProxy::new(
             executor, /* , synchronizer_client.clone()) */
             tg_sync.clone(),
@@ -89,6 +95,7 @@ impl ChainedBftProvider {
             config,
             storage,
             initial_data,
+            epoch_info.clone(),
         );
         Self {
             smr,
@@ -96,6 +103,7 @@ impl ChainedBftProvider {
             admin_transaction,
             state_computer,
             tg_sync,
+            epoch_info,
         }
     }
 
@@ -147,5 +155,9 @@ impl ConsensusProvider for ChainedBftProvider {
 
     fn get_admin_transaction(&self) -> Arc<RwLock<Option<SignedTransaction>>> {
         self.admin_transaction.clone()
+    }
+
+    fn get_epoch_info(&self) -> Arc<RwLock<EpochInfo>> {
+        self.epoch_info.clone()
     }
 }

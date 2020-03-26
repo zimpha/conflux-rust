@@ -201,6 +201,9 @@ pub trait Cfx {
     #[rpc(name = "cfx_sendNewConsortiumMembershipTrans")]
     fn send_new_consortium_member_trans(&self, raw: Bytes) -> RpcResult<()>;
 
+    #[rpc(name = "cfx_getBFTEpochNumber")]
+    fn get_bft_epoch_number(&self) -> RpcResult<u64>;
+
     //        /// Returns transaction at given block hash and index.
     //        #[rpc(name = "cfx_getTransactionByBlockHashAndIndex")]
     //        fn transaction_by_block_hash_and_index(&self, RpcH256, Index) ->

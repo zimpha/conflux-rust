@@ -789,3 +789,18 @@ subcommands:
                                     - rpc-method:
                                         default_value: getstatus
                                         hidden: true
+    - alliance:
+        about: Alliance Tree Graph commands
+        setting: SubcommandRequiredElseHelp
+        args:
+            - url:
+                help: URL of RPC server
+                long: url
+                takes_value: true
+                default_value: http://localhost:12539
+                global: true
+        subcommands:
+            - add_validator:
+                about: Add a new validator.
+            - remove_validator:
+                about: Remove a existing validator.
